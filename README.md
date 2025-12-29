@@ -1,7 +1,6 @@
-Title of Project: Vending Machine Simulator
-Team Name: Team 13 404 Found Us
-Team Members: Manasvi Bandi, Lakshmi Saranya Alamanda, Ritisha Perumalla, Claira Corkery
-The Team Assignment SFWRENG 2XC3 November 12, 2025
+Virtual Vending Machine 
+
+Members: Ritisha Perumalla, Saranya Alamanda, Manasvi Bandi, Claira Corkery
 
 📌 Description
 
