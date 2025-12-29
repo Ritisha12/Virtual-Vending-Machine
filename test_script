@@ -1,0 +1,279 @@
+#!/bin/bash
+#
+# A simple framework for testing the binconv (bctest) scripts
+#
+# Returns the number of failed test cases.
+#
+# Format of a test:
+#     test 'command' expected_return_value 'stdin text' 'expected stdout' 'expected stderr'
+#
+# Some example test cases are given. You should add more test cases.
+#
+# Sam Scott, McMaster University, 2025
+
+
+# GLOBALS: tc = test case number, fails = number of failed cases
+declare -i tc=0
+declare -i fails=0
+
+############################################
+# Run a single test. Runs a given command 3 times
+# to check the return value, stdout, and stderr
+#
+# GLOBALS: tc, fails
+# PARAMS: $1 = command
+#         $2 = expected return value
+#         $3 = standard input text to send
+#         $4 = expected stdout
+#         $5 = expected stderr
+# RETURNS: 0 = success, 1 = bad return, 
+#          2 = bad stdout, 3 = bad stderr
+############################################
+test() {
+    tc=tc+1
+
+    local COMMAND=$1
+    local RETURN=$2
+	local STDIN=$3
+    local STDOUT=$4
+    local STDERR=$5
+    # CHECK RETURN VALUE
+    $COMMAND <<< "$STDIN" >/dev/null 2>/dev/null
+    local A_RETURN=$?
+
+    if [[ "$A_RETURN" != "$RETURN" ]]; then
+        echo "Test $tc Failed"
+        echo "   $COMMAND"
+        echo "   Expected Return: $RETURN"
+        echo "   Actual Return: $A_RETURN"
+        fails=$fails+1
+        return 1
+    fi
+
+    # CHECK STDOUT
+    local A_STDOUT=$($COMMAND <<< "$STDIN" 2>/dev/null)
+
+    if [[ "$STDOUT" != "$A_STDOUT" ]]; then
+        echo "Test $tc Failed"
+        echo "   $COMMAND"
+        echo "   Expected STDOUT: $STDOUT"
+        echo "   Actual STDOUT: $A_STDOUT"
+        fails=$fails+1
+        return 2
+    fi
+    
+    # CHECK STDERR
+    local A_STDERR=$($COMMAND <<< "$STDIN" 2>&1 >/dev/null)
+    if [[ "$STDERR" != "$A_STDERR" ]]; then
+        echo "Test $tc Failed"
+        echo "   $COMMAND"
+        echo "   Expected STDERR: $STDERR"
+        echo "   Actual STDERR: $A_STDERR"
+        fails=$fails+1
+        return 3
+    fi
+    
+    # SUCCESS
+    echo "Test $tc Passed"
+    return 0
+}
+
+##########################################
+# EXAMPLE TEST CASES
+##########################################
+
+# Test #1 - No arguments (usage())
+test './vendingmachine_cov' 1 '' 'Usage: vendingmachine [CATEGORY (s|S|d||D|f|F)]' ''
+
+# Test 2: Help flag
+test './vendingmachine_cov --help' 0 '' 'vendingmachine: get the category name
+
+Usage: vendingmachine [CATEGORY (s|S|d||D|f|F)]
+
+Options:
+vendingmachine [CATEGORY (s|S|d||D|f|F)]        The categories that the user can choose from.
+                                                s|S Snacks
+                                                d|D Drinks
+                                                f|F FirstAid
+--help                                          This displays this help message.
+
+Examples:
+./vendingmachine s                              Prints all the snack items available.
+./vendingmachine d                              Prints all the drink items available.
+./vendingmachine --help                         Prints this help function.' ''
+
+# Test 3: Valid snacks (only check header)
+test './vendingmachine_cov s' 0 '' '
+            🍓🍡🍬🍭 Requested Category: Snacks
+
+ID    | Item                 | Price   | Quantity
+--------------------------------------------------------------
+S12   | Chips Ahoy Cookies   | 2.25    |    12
+S01   | Cheesy Doritos       | 2.67    |    12
+S25   | Trail Mix            | 2.75    |    12
+S19   | Granola Bar          | 1.75    |    12
+S08   | Crunch Chocolate Bar | 3.99    |    12
+
+Enter item ID to purchase:  Item with ID  was not found.
+Purchase failed.' ''
+
+# Test 4: Valid drinks (only check header)
+test './vendingmachine_cov d' 0 '' '
+               🍹🥤 Requested Category: Drinks
+
+ID    | Item                 | Price   | Quantity
+--------------------------------------------------------------
+D07   | Orange Juice         | 2.75    |    12
+D14   | Gatorade             | 2.08    |    12
+D05   | Coca-Cola            | 1.97    |    12
+D02   | Water Bottle         | 1.25    |    12
+D22   | Iced Tea             | 2.77    |    12
+
+Enter item ID to purchase:  Item with ID  was not found.
+Purchase failed.' ''
+
+# Test 5: Valid FirstAid (only check header)
+test './vendingmachine_cov f' 0 '' '
+                🚑🧰 Requested Category: FirstAid
+
+ID    | Item                 | Price   | Quantity
+--------------------------------------------------------------
+F03   | Hand Sanitizer       | 4.99    |    12
+F11   | Disinfectant Wipes   | 3.97    |    12
+F01   | Bandages             | 5.97    |    12
+F17   | Tylenol              | 8.79    |    12
+F09   | Small Cold Pack      | 1.84    |    12
+
+Enter item ID to purchase:  Item with ID  was not found.
+Purchase failed.' ''
+
+# Test 6: Uppercase S
+test './vendingmachine_cov S' 0 '' '
+            🍓🍡🍬🍭 Requested Category: Snacks
+
+ID    | Item                 | Price   | Quantity
+--------------------------------------------------------------
+S12   | Chips Ahoy Cookies   | 2.25    |    12
+S01   | Cheesy Doritos       | 2.67    |    12
+S25   | Trail Mix            | 2.75    |    12
+S19   | Granola Bar          | 1.75    |    12
+S08   | Crunch Chocolate Bar | 3.99    |    12
+
+Enter item ID to purchase:  Item with ID  was not found.
+Purchase failed.' ''
+
+# Test 7: Uppercase D
+test './vendingmachine_cov D' 0 '' '
+               🍹🥤 Requested Category: Drinks
+
+ID    | Item                 | Price   | Quantity
+--------------------------------------------------------------
+D07   | Orange Juice         | 2.75    |    12
+D14   | Gatorade             | 2.08    |    12
+D05   | Coca-Cola            | 1.97    |    12
+D02   | Water Bottle         | 1.25    |    12
+D22   | Iced Tea             | 2.77    |    12
+
+Enter item ID to purchase:  Item with ID  was not found.
+Purchase failed.' ''
+
+# Test 8: Uppercase F
+test './vendingmachine_cov F' 0 '' '
+                🚑🧰 Requested Category: FirstAid
+
+ID    | Item                 | Price   | Quantity
+--------------------------------------------------------------
+F03   | Hand Sanitizer       | 4.99    |    12
+F11   | Disinfectant Wipes   | 3.97    |    12
+F01   | Bandages             | 5.97    |    12
+F17   | Tylenol              | 8.79    |    12
+F09   | Small Cold Pack      | 1.84    |    12
+
+Enter item ID to purchase:  Item with ID  was not found.
+Purchase failed.' ''
+
+# Test 9: Invalid category Z
+test './vendingmachine_cov Z' 0 '' '
+Category not known.
+Usage: vendingmachine [CATEGORY (s|S|d||D|f|F)]
+Enter item ID to purchase:  Item with ID  was not found.
+Purchase failed.' ''
+
+# Test 10: Multi-character category
+test './vendingmachine_cov abc' 0 '' '
+Category not known.
+Usage: vendingmachine [CATEGORY (s|S|d||D|f|F)]
+
+Enter item ID to purchase:  Item with ID  was not found.
+Purchase failed.' ''
+
+# Test 11: Missing inventory file
+mv inventory.csv inventory_temp.csv
+test './vendingmachine_cov s' 1 '' 'Failed to open inventory.csv' ''
+mv inventory_temp.csv inventory.csv
+
+cat defaultInventory.csv > inventory.csv
+# Test 12
+test './vendingmachine_cov s' 0 'S01
+cash
+3.02' '
+            🍓🍡🍬🍭 Requested Category: Snacks
+
+ID    | Item                 | Price   | Quantity
+--------------------------------------------------------------
+S12   | Chips Ahoy Cookies   | 2.25    |    12
+S01   | Cheesy Doritos       | 2.67    |    11
+S25   | Trail Mix            | 2.75    |    12
+S19   | Granola Bar          | 1.75    |    12
+S08   | Crunch Chocolate Bar | 3.99    |    12
+
+Enter item ID to purchase: Your total is $2.67
+Are you paying by cash or card? (enter cash/card): The total is $3.02. Please insert your cash: Your change is 0.00
+Amount user entered 3.02
+
+                   Receipt                      
+--------------------------------------------------
+Item           : Cheesy Doritos
+ID             : S01
+Price          : $2.67
+Tax            : $0.35
+Total          : $3.02
+User Inputted  : $3.02
+Change         : $0.00
+Status         : Purchase was successful!
+--------------------------------------------------' ''
+
+cat defaultInventory.csv > inventory.csv
+
+# # Restoring Inventory - TA's suggestion
+# cat defaultInventory.csv > inventory.csv
+
+# Failing to open inventory
+mv inventory.csv inventory_temp.csv
+./vendingmachine_cov s
+mv inventory_temp.csv inventory.csv
+# YESS passed because it prints Failed to open inventory.csv
+
+# empty inventory or failure to load
+> inventory.csv  # empty the file
+./vendingmachine_cov s
+cat defaultInventory.csv > inventory.csv  # restore
+# also passed since Item with ID INVALID_I was not found:
+
+# purchase failing
+echo "INVALID_ID" | ./vendingmachine_cov s
+# also passed since Purchase failed.
+
+# triggering free in loading_inventory 
+echo "ID,Category,Name,Price,Quantity" > inventory.csv
+./vendingmachine_cov s
+
+# buy item failures
+echo "INVALID" | ./vendingmachine_cov s
+
+# out of stock
+sed -i 's/12$/0/' inventory.csv
+echo "S01\ncash\n5.00" | ./vendingmachine_cov s
+
+# return code
+exit $fails

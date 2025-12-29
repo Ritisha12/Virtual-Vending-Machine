@@ -1,0 +1,119 @@
+name: Build Script for vending machine
+
+on:
+    push:
+        branches: [ "main" ]
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Do the test inventory
+              run: |
+                echo "ID,Category,Name,Price,Quantity" > inventory.csv
+                echo "D07,Drinks,Orange Juice,2.75,12" >> inventory.csv
+                echo "S12,Snacks,Chips Ahoy Cookies,2.25,12" >> inventory.csv
+                echo "F03,FirstAid,Hand Sanitizer,4.99,12" >> inventory.csv
+                echo "S01,Snacks,Cheesy Doritos,2.67,12" >> inventory.csv
+                echo "D14,Drinks,Gatorade,2.08,12" >> inventory.csv
+                echo "F11,FirstAid,Disinfectant Wipes,3.97,12" >> inventory.csv
+                echo "S25,Snacks,Trail Mix,2.75,12" >> inventory.csv
+                echo "D05,Drinks,Coca-Cola,1.97,12" >> inventory.csv
+                echo "F01,FirstAid,Bandages,5.97,12" >> inventory.csv
+                echo "S19,Snacks,Granola Bar,1.75,12" >> inventory.csv
+                echo "D02,Drinks,Water Bottle,1.25,12" >> inventory.csv
+                echo "F17,FirstAid,Tylenol,8.79,12" >> inventory.csv
+                echo "S08,Snacks,Crunch Chocolate Bar,3.99,12" >> inventory.csv
+                echo "D22,Drinks,Iced Tea,2.77,12" >> inventory.csv
+                echo "F09,FirstAid,Small Cold Pack,1.84,12" >> inventory.csv
+
+            - name: ensure test-filename compatibility
+              run: |
+                # create aliases so tests that expect different names work
+                cp inventory.csv inventory || true
+                cp inventory.csv inventory.txt || true
+                chmod 666 inventory inventory.csv inventory.txt || true
+
+            # -----------------------
+            # Install GTK dev (needed to compile GUI)
+            # -----------------------
+            - name: Install GTK dev packages
+              run: |
+                sudo apt-get update
+                sudo apt-get install -y libgtk-3-dev pkg-config
+
+            # -----------------------
+            # Build the GUI binary
+            # (replace receipt_gui.c with your actual GUI source filename if different)
+            # -----------------------
+            - name: build gui
+              run: |
+                # compile GUI (uses pkg-config to get GTK flags)
+                gcc receiptGUI.c -o receipt_gui `pkg-config --cflags --libs gtk+-3.0`
+
+            - name: build vending machine
+              run: gcc -o vendingmachine vendingmachine.c inventory.c payment.c purchase.c -lm
+
+            - name: build coverage report
+              run: gcc --coverage -o vendingmachine_cov vendingmachine.c inventory.c payment.c purchase.c -lm
+
+            - name: upload vending machine
+              uses: actions/upload-artifact@v4
+              with:
+                name: vending machine executable
+                path: ./vendingmachine
+
+            # -----------------------
+            # Upload GUI executable (if built)
+            # -----------------------
+            - name: upload gui executable
+              uses: actions/upload-artifact@v4
+              with:
+                name: gui executable
+                path: ./receipt_gui
+
+            - name: build bctest and running tests
+              run: gcc --coverage -o bctest unit_testing.c inventory.c payment.c purchase.c -lm
+
+            - name: debug working dir & inventory
+              run: |
+                echo "pwd: $(pwd)"
+                ls -la
+                echo "---- inventory.csv ----"
+                cat inventory.csv || true
+                echo "---- check other inventory names ----"
+                ls -la inventory* || true
+
+
+            - name: runing the unit tests
+              run: ./bctest 2>&1 | tee test_results.txt
+
+            - name: making the test script executable
+              run: chmod +x test_script
+
+            - name: tests for main function
+              run: ./test_script 2>&1 | tee test_result.txt
+
+            - name: generate gcov files
+              run: |
+                gcov vendingmachine_cov-vendingmachine.c
+                gcov bctest-inventory.c
+                gcov bctest-payment.c
+                gcov bctest-purchase.c
+
+            - name: upload test results
+              if: ${{ always() }}
+              uses: actions/upload-artifact@v4
+              with:
+                name: test results
+                path: ./test_results.txt
+
+            - name: upload coverage reports
+              if: ${{ always() }}
+              uses: actions/upload-artifact@v4
+              with:
+                name: coverage reports
+                path: ./*.gcov
+
